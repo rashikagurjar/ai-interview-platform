@@ -23,7 +23,8 @@ from backend.schemas import (
 
 # Services and Agents
 from backend.services.llm import GeminiClient, LLMError
-from backend.services.session import InMemorySessionStore, InterviewSession
+from backend.services.session import InterviewSession
+from backend.services.mongo_session import MongoSessionStore
 from backend.agents.interview import InterviewAgent
 
 # Load env variables
@@ -43,7 +44,7 @@ app.add_middleware(
 # Initialize Services
 gemini_client = GeminiClient()
 interview_agent = InterviewAgent(gemini_client)
-session_store = InMemorySessionStore()
+session_store = MongoSessionStore()
 
 # ==========================================
 # HEALTH & LEGACY ROUTE ENDPOINTS
