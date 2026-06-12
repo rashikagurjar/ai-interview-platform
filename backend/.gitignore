@@ -3,3 +3,4 @@ __pycache__/
 venv/
 .env
 node_modules/
+backend/test_chromadb_storage/

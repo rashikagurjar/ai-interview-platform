@@ -27,6 +27,13 @@ from backend.services.session import InterviewSession
 from backend.services.mongo_session import MongoSessionStore
 from backend.agents.interview import InterviewAgent
 
+# New RAG services
+from backend.services.embedding_service import SentenceTransformerEmbeddingService
+from backend.services.chunking_service import ResumeChunkingService
+from backend.services.vector_store import ChromaDBStore, Document
+from backend.services.indexing_service import ResumeIndexingService
+from pydantic import BaseModel
+
 # Load env variables
 load_dotenv()
 
@@ -43,8 +50,23 @@ app.add_middleware(
 
 # Initialize Services
 gemini_client = GeminiClient()
-interview_agent = InterviewAgent(gemini_client)
 session_store = MongoSessionStore()
+
+# Initialize RAG Services
+embedding_service = SentenceTransformerEmbeddingService()
+chunking_service = ResumeChunkingService()
+
+resume_store = ChromaDBStore(collection_name="resume_embeddings", embedding_service=embedding_service)
+jd_store = ChromaDBStore(collection_name="jd_embeddings", embedding_service=embedding_service)
+
+indexing_service = ResumeIndexingService(
+    vector_store=resume_store,
+    chunking_service=chunking_service,
+    embedding_service=embedding_service
+)
+
+# Initialize InterviewAgent with resume_store injected
+interview_agent = InterviewAgent(gemini_client, resume_store=resume_store)
 
 # ==========================================
 # HEALTH & LEGACY ROUTE ENDPOINTS
@@ -102,17 +124,32 @@ async def parse_resume(file: Optional[UploadFile] = File(None), track: str = For
 
     # Invoke Gemini InterviewAgent to generate dynamic profile questions
     try:
-        profile = interview_agent.parse_resume_and_generate_questions(
-            resume_text=text,
-            track=track
-        )
-        
-        # Create and register session
+        # Create and register session first to establish session ID
         session = InterviewSession(
             track=track,
-            resume_text=text,
-            profile=profile
+            resume_text=text
         )
+
+        candidate_id = f"cand_{session.session_id}"
+        resume_id = f"res_{session.session_id}"
+
+        # Vectorize and index resume
+        try:
+            indexing_service.index_resume(
+                candidate_id=candidate_id,
+                resume_id=resume_id,
+                resume_text=text
+            )
+        except Exception as e:
+            logger.error(f"Failed to index resume in ChromaDB: {e}")
+
+        profile = interview_agent.parse_resume_and_generate_questions(
+            resume_text=text,
+            track=track,
+            resume_id=resume_id
+        )
+        
+        session.profile = profile
         session_store.save(session)
         
         # Return merged dict containing session_id and the profile template fields
@@ -196,6 +233,91 @@ def evaluate_session(session_id: str):
         raise HTTPException(status_code=500, detail=str(e))
     except Exception as e:
         raise HTTPException(status_code=500, detail=f"Evaluation agent failed: {str(e)}")
+
+# ==========================================
+# CHROMADB RAG ROUTE ENDPOINTS
+# ==========================================
+class VectorizeResumeRequest(BaseModel):
+    candidate_id: str
+    resume_text: str
+
+class RetrieveContextRequest(BaseModel):
+    query: str
+    top_k: int = 5
+    resume_id: Optional[str] = None
+    candidate_id: Optional[str] = None
+
+class ContextResultItem(BaseModel):
+    text: str
+    score: float
+    metadata: Dict[str, Any]
+
+class RetrieveContextResponse(BaseModel):
+    results: List[ContextResultItem]
+
+@app.post("/api/vectorize-resume/{resume_id}")
+def vectorize_resume(resume_id: str, req: VectorizeResumeRequest):
+    """Vectorize and index resume in ChromaDB store."""
+    try:
+        chunks_count = indexing_service.index_resume(
+            candidate_id=req.candidate_id,
+            resume_id=resume_id,
+            resume_text=req.resume_text
+        )
+        return {
+            "status": "success",
+            "message": "Resume vectorized and indexed successfully",
+            "chunks_count": chunks_count,
+            "resume_id": resume_id
+        }
+    except Exception as e:
+        logger.exception(f"Error vectorizing resume {resume_id}: {e}")
+        raise HTTPException(status_code=500, detail=f"Failed to vectorize resume: {str(e)}")
+
+@app.post("/api/retrieve-context", response_model=RetrieveContextResponse)
+def retrieve_context(req: RetrieveContextRequest):
+    """Retrieve top semantic matches from ChromaDB resume store."""
+    try:
+        where_filter = {}
+        if req.resume_id:
+            where_filter["resume_id"] = req.resume_id
+        if req.candidate_id:
+            where_filter["candidate_id"] = req.candidate_id
+
+        where = where_filter if where_filter else None
+
+        documents = resume_store.query(
+            query_text=req.query,
+            n_results=req.top_k,
+            where=where
+        )
+
+        results = []
+        for doc in documents:
+            score = doc.metadata.pop("score", 0.0)
+            results.append(ContextResultItem(
+                text=doc.text,
+                score=score,
+                metadata=doc.metadata
+            ))
+
+        return RetrieveContextResponse(results=results)
+    except Exception as e:
+        logger.exception(f"Error retrieving context: {e}")
+        raise HTTPException(status_code=500, detail=f"Failed to retrieve context: {str(e)}")
+
+@app.delete("/api/resume-embeddings/{resume_id}")
+def delete_resume_embeddings(resume_id: str):
+    """Delete all vector embeddings associated with a resume_id."""
+    try:
+        resume_store.delete_documents(where={"resume_id": resume_id})
+        return {
+            "status": "success",
+            "message": f"Successfully deleted embeddings for resume_id: {resume_id}"
+        }
+    except Exception as e:
+        logger.exception(f"Error deleting resume embeddings: {e}")
+        raise HTTPException(status_code=500, detail=f"Failed to delete resume embeddings: {str(e)}")
 
 # ==========================================
 # LOCAL COMPILER CODE RUNNER ENDPOINT

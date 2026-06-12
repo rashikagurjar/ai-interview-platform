@@ -1,5 +1,5 @@
 import logging
-from typing import List
+from typing import List, Optional, Any
 from backend.services.llm import GeminiClient
 from backend.schemas import ProfileTemplateSchema, EvaluateResponseSchema, ResponseItem
 
@@ -7,13 +7,15 @@ logger = logging.getLogger(__name__)
 
 class InterviewAgent:
     """Agent orchestrating conversational interview prompting and assessments via Gemini."""
-    def __init__(self, llm_client: GeminiClient):
+    def __init__(self, llm_client: GeminiClient, resume_store: Optional[Any] = None):
         self.llm_client = llm_client
+        self.resume_store = resume_store
         
     def parse_resume_and_generate_questions(
         self,
         resume_text: str,
         track: str,
+        resume_id: Optional[str] = None,
         model_name: str = "gemini-2.5-flash"
     ) -> ProfileTemplateSchema:
         """Parses resume content and dynamically constructs a syllabus and 4 custom questions."""
@@ -21,6 +23,25 @@ class InterviewAgent:
             "You are an advanced AI technical interviewer. You conduct rigorous, structured "
             "technical assessments tailored specifically to candidate resumes."
         )
+        
+        # RAG flow: Retrieve relevant chunks if store and resume_id are available
+        context_text = resume_text
+        if self.resume_store and resume_id:
+            try:
+                logger.info(f"Querying vector store for track '{track}' and resume_id '{resume_id}'...")
+                relevant_docs = self.resume_store.query(
+                    query_text=track,
+                    n_results=4,
+                    where={"resume_id": resume_id}
+                )
+                if relevant_docs:
+                    # Combine retrieved chunks
+                    context_text = "\n\n".join([doc.text for doc in relevant_docs])
+                    logger.info(f"Successfully retrieved {len(relevant_docs)} chunks from ChromaDB for prompt context.")
+                else:
+                    logger.warning(f"No resume chunks found in ChromaDB for resume_id '{resume_id}'. Falling back to full resume.")
+            except Exception as e:
+                logger.error(f"Error querying ChromaDB: {e}. Falling back to full resume text.")
         
         prompt = f"""
 Analyze the candidate's resume and target track: '{track}'.
@@ -34,7 +55,7 @@ Generate:
 6. 2 test cases with integer array inputs and expected outputs to verify their solution inside a compiler.
 
 Candidate Resume/Context Text:
-{resume_text}
+{context_text}
 """
         logger.info(f"Triggering resume parsing and question generation agent for track '{track}'...")
         return self.llm_client.generate_structured(

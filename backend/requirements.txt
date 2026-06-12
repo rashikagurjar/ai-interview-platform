@@ -6,3 +6,5 @@ python-dotenv
 pypdf
 python-docx
 python-multipart
+chromadb
+sentence-transformers
