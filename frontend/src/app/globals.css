@@ -1869,3 +1869,321 @@ footer.app-footer {
   background: hsla(230, 25%, 5%, 0.85);
   margin-top: auto;
 }
+
+/* --- AI AVATAR SYSTEM STYLES --- */
+.avatar-controller-layout {
+  padding: 1.5rem;
+  display: flex;
+  flex-direction: column;
+  gap: 1rem;
+  position: relative;
+  overflow: hidden;
+  transition: var(--transition-smooth);
+}
+
+.avatar-row-container {
+  display: flex;
+  align-items: center;
+  gap: 1.5rem;
+  position: relative;
+  z-index: 1;
+}
+
+.avatar-canvas-container {
+  position: relative;
+  width: 90px;
+  height: 90px;
+  flex-shrink: 0;
+  border-radius: 50%;
+  background: hsla(230, 25%, 15%, 0.4);
+  border: 1px solid var(--border-glass);
+  box-shadow: var(--shadow-glass);
+}
+
+.avatar-grid-overlay {
+  position: absolute;
+  inset: -15px;
+  width: 120px;
+  height: 120px;
+  pointer-events: none;
+}
+
+.avatar-portrait-wrapper {
+  width: 100%;
+  height: 100%;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  border-radius: 50%;
+  overflow: visible;
+}
+
+.avatar-svg {
+  width: 100%;
+  height: 100%;
+  overflow: visible;
+}
+
+.avatar-meta-column {
+  display: flex;
+  flex-direction: column;
+  gap: 0.5rem;
+  flex: 1;
+}
+
+.avatar-name-title {
+  font-size: 1.05rem;
+  font-weight: 700;
+  background: linear-gradient(to right, var(--text-main), var(--text-muted));
+  -webkit-background-clip: text;
+  -webkit-text-fill-color: transparent;
+}
+
+.avatar-status-panel {
+  display: flex;
+  align-items: center;
+  gap: 1rem;
+  flex-wrap: wrap;
+}
+
+.avatar-status-pill {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.5rem;
+  padding: 0.25rem 0.75rem;
+  border-radius: 20px;
+  border: 1px solid;
+  font-size: 0.75rem;
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+  transition: var(--transition-smooth);
+}
+
+.avatar-status-dot {
+  width: 6px;
+  height: 6px;
+  border-radius: 50%;
+  display: inline-block;
+  box-shadow: 0 0 8px currentColor;
+  animation: pulse-dot 1.5s infinite ease-in-out;
+}
+
+@keyframes pulse-dot {
+  0%, 100% { opacity: 0.6; }
+  50% { opacity: 1; transform: scale(1.2); }
+}
+
+.avatar-wave-visualizer {
+  display: flex;
+  align-items: center;
+  height: 24px;
+}
+
+.speech-wave-bars {
+  display: flex;
+  align-items: flex-end;
+  gap: 3px;
+  height: 100%;
+}
+
+.voice-bar-anim {
+  width: 3px;
+  border-radius: 3px;
+  min-height: 4px;
+}
+
+.listening-pulse-container {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  position: relative;
+}
+
+.listening-pulse-ring {
+  position: absolute;
+  left: 0;
+  width: 14px;
+  height: 14px;
+  border-radius: 50%;
+  border: 1.5px solid;
+  pointer-events: none;
+}
+
+.listening-pulse-ring.delay {
+  animation-delay: 0.9s;
+}
+
+.listening-subtext {
+  font-size: 0.75rem;
+  color: var(--text-dim);
+  font-style: italic;
+  margin-left: 20px;
+}
+
+.processing-loader-wrapper {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+}
+
+.processing-circle-spinner {
+  animation: rotate-spinner 2s linear infinite;
+  width: 18px;
+  height: 18px;
+}
+
+.processing-circle-spinner .path {
+  stroke-linecap: round;
+  animation: dash-spinner 1.5s ease-in-out infinite;
+}
+
+.processing-subtext {
+  font-size: 0.75rem;
+  font-weight: 500;
+}
+
+@keyframes rotate-spinner {
+  100% { transform: rotate(360deg); }
+}
+
+@keyframes dash-spinner {
+  0% { stroke-dasharray: 1, 150; stroke-dashoffset: 0; }
+  50% { stroke-dasharray: 90, 150; stroke-dashoffset: -35; }
+  100% { stroke-dasharray: 90, 150; stroke-dashoffset: -124; }
+}
+
+.idle-wave-flat {
+  display: flex;
+  gap: 4px;
+}
+
+.idle-wave-flat .flat-bar {
+  width: 4px;
+  height: 4px;
+  border-radius: 50%;
+  background: var(--text-dim);
+  opacity: 0.5;
+}
+
+/* Speech Bubble styles */
+.avatar-speech-bubble-wrapper {
+  margin-top: 0.5rem;
+  position: relative;
+  width: 100%;
+}
+
+.avatar-speech-bubble {
+  padding: 1.25rem;
+  border-radius: 12px;
+  position: relative;
+  background: hsla(230, 25%, 10%, 0.7);
+  border: 1px solid var(--border-glass);
+  box-shadow: var(--shadow-glass);
+}
+
+.bubble-pointer {
+  position: absolute;
+  top: -6px;
+  left: 36px;
+  width: 12px;
+  height: 12px;
+  background: hsla(230, 25%, 10%, 0.7);
+  border-left: 1px solid var(--border-glass);
+  border-top: 1px solid var(--border-glass);
+  transform: rotate(45deg);
+}
+
+.bubble-metadata {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  font-size: 0.7rem;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+  color: var(--accent-purple);
+  margin-bottom: 0.5rem;
+}
+
+.round-progress-label {
+  background: hsla(270, 90%, 65%, 0.1);
+  padding: 0.1rem 0.4rem;
+  border-radius: 4px;
+}
+
+.round-name-label {
+  color: var(--text-muted);
+}
+
+.round-name-divider {
+  opacity: 0.5;
+}
+
+.bubble-text-content {
+  font-size: 0.925rem;
+  line-height: 1.5;
+  color: var(--text-main);
+  margin-bottom: 0.75rem;
+}
+
+.bubble-controls-footer {
+  display: flex;
+  align-items: center;
+  gap: 0.75rem;
+  border-top: 1px solid hsla(230, 20%, 30%, 0.25);
+  padding-top: 0.75rem;
+}
+
+.bubble-action-btn {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.35rem;
+  font-size: 0.725rem;
+  font-weight: 600;
+  color: var(--text-muted);
+  background: hsla(230, 20%, 30%, 0.3);
+  border: 1px solid var(--border-glass);
+  padding: 0.25rem 0.6rem;
+  border-radius: 6px;
+  transition: var(--transition-smooth);
+}
+
+.bubble-action-btn:hover {
+  background: hsla(230, 20%, 35%, 0.5);
+  color: var(--text-main);
+  border-color: var(--accent-cyan);
+}
+
+.bubble-action-btn.muted {
+  border-color: var(--accent-red);
+  color: var(--accent-red);
+  background: hsla(355, 85%, 55%, 0.05);
+}
+
+.bubble-action-btn.skip-btn {
+  margin-left: auto;
+  border-color: var(--accent-purple);
+  color: var(--accent-purple);
+}
+
+.bubble-action-btn.skip-btn:hover {
+  background: hsla(270, 90%, 65%, 0.1);
+  color: var(--text-main);
+}
+
+.btn-label-sm {
+  font-size: 0.7rem;
+}
+
+.control-icon {
+  flex-shrink: 0;
+}
+
+/* Custom glow states */
+.glow-magenta {
+  box-shadow: 0 0 15px hsla(315, 95%, 60%, 0.2);
+}
+.glow-green {
+  box-shadow: 0 0 15px hsla(145, 80%, 45%, 0.2);
+}

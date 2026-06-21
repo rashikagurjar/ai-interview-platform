@@ -18,7 +18,8 @@ from backend.schemas import (
     SessionAnswerRequest,
     SessionResponse,
     ResponseItem,
-    EvaluateRequest
+    EvaluateRequest,
+    QuestionSchema
 )
 
 # Services and Agents
@@ -183,7 +184,7 @@ def get_session(session_id: str):
 
 @app.post("/api/session/{session_id}/answer")
 def save_session_answer(session_id: str, req: SessionAnswerRequest):
-    """Saves candidate round response incrementally into the session."""
+    """Saves candidate round response incrementally into the session and generates next follow-up question."""
     session = session_store.get(session_id)
     if not session:
         raise HTTPException(status_code=404, detail="Interview session not found.")
@@ -207,8 +208,69 @@ def save_session_answer(session_id: str, req: SessionAnswerRequest):
     else:
         session.responses.append(new_response)
         
+    answers_count = len(session.responses)
+    
+    if session.profile:
+        # Clear any questions that were generated in a future round to avoid duplicate appends on retry
+        session.profile.questions = session.profile.questions[:answers_count]
+        
+        try:
+            if answers_count == 1:
+                # Generate Round 2 (system-design) dynamically
+                next_q = interview_agent.generate_next_question(
+                    track=session.track,
+                    resume_text=session.resume_text or "",
+                    responses=session.responses,
+                    next_round_type="system-design"
+                )
+                session.profile.questions.append(next_q)
+            elif answers_count == 2:
+                # Predefined Round 3 (coding) question
+                coding_q = QuestionSchema(
+                    type="coding",
+                    question="You need to create an optimized helper `resolveIntersect(arr1, arr2)` which finds the unique intersection between two numerical arrays. Complete the code inside the live IDE and execute the verification suite. Explain your time and space complexity bounds.",
+                    aiCriteria="Assesses algorithm analysis, linear time-complexity optimizations, and code robustness."
+                )
+                session.profile.questions.append(coding_q)
+            elif answers_count == 3:
+                # Generate Round 4 (wrap-up) dynamically
+                next_q = interview_agent.generate_next_question(
+                    track=session.track,
+                    resume_text=session.resume_text or "",
+                    responses=session.responses,
+                    next_round_type="wrap-up"
+                )
+                session.profile.questions.append(next_q)
+        except Exception as e:
+            logger.exception(f"Error generating dynamic followup question: {e}")
+            # In case LLM fails, append a fallback question so the user can continue
+            fallback_questions = {
+                1: QuestionSchema(
+                    type="system-design",
+                    question="Describe the architectural design and microservices layout of a high-performance scaling system for this track. How would you handle locking or caching?",
+                    aiCriteria="Assesses distributed design logic and bottlenecks mitigation."
+                ),
+                2: QuestionSchema(
+                    type="coding",
+                    question="You need to create an optimized helper `resolveIntersect(arr1, arr2)` which finds the unique intersection between two numerical arrays. Complete the code inside the live IDE and execute the verification suite. Explain your time and space complexity bounds.",
+                    aiCriteria="Assesses algorithm analysis, linear time-complexity optimizations, and code robustness."
+                ),
+                3: QuestionSchema(
+                    type="wrap-up",
+                    question="To wrap up, what are the key performance optimizations and scalability trade-offs of the solutions you've proposed today?",
+                    aiCriteria="Assesses trade-off analysis and general competence."
+                )
+            }
+            fallback_q = fallback_questions.get(answers_count)
+            if fallback_q:
+                session.profile.questions.append(fallback_q)
+
     session_store.save(session)
-    return {"status": "success", "answers_count": len(session.responses)}
+    return {
+        "status": "success", 
+        "answers_count": answers_count,
+        "profile": session.profile.model_dump() if session.profile else None
+    }
 
 @app.post("/api/session/{session_id}/evaluate", response_model=EvaluateResponseSchema)
 def evaluate_session(session_id: str):

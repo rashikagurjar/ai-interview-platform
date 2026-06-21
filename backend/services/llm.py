@@ -32,6 +32,7 @@ class GeminiClient:
         max_retries: int = 3,
         backoff_factor: float = 2.0
     ) -> T:
+    
         """
         Generates a structured JSON response matching the provided Pydantic schema model.
         Includes exponential backoff retry logic.
@@ -61,6 +62,7 @@ class GeminiClient:
                     generation_config=config
                 )
                 
+                
                 # Check for empty response
                 if not response.text:
                     raise LLMError("Gemini API returned an empty text response.")
@@ -85,3 +87,5 @@ class GeminiClient:
             f"Failed to generate valid structured LLM output after {max_retries} attempts. "
             f"Last error: {type(last_exception).__name__}: {str(last_exception)}"
         )
+
+       
