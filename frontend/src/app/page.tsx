@@ -1,6 +1,7 @@
 "use client";
 
 import React, { useState, useEffect, useRef } from 'react';
+import { useRouter } from 'next/navigation';
 import {
   ProfileTemplate,
   UserResponse,
@@ -16,6 +17,9 @@ import { InterviewSection } from '@/components/InterviewSection';
 import { ReportSection } from '@/components/ReportSection';
 
 export default function AeroAssessSimulator() {
+  const router = useRouter();
+  const [isAuthenticated, setIsAuthenticated] = useState<boolean>(false);
+
   // Navigation & Workspace State
   const [activeSection, setActiveSection] = useState<'home' | 'setup' | 'interview' | 'report'>('home');
   const [selectedPreset, setSelectedPreset] = useState<string>('frontend');
@@ -105,6 +109,16 @@ export default function AeroAssessSimulator() {
     }
   };
 
+  // Authentication Check
+  useEffect(() => {
+    const token = localStorage.getItem('token');
+    if (!token) {
+      router.push('/login');
+    } else {
+      setIsAuthenticated(true);
+    }
+  }, [router]);
+
   // Initialize System Logs
   useEffect(() => {
     logTelemetry('SYS', 'Initializing AeroAssess client compiler context maps...');
@@ -170,8 +184,10 @@ export default function AeroAssessSimulator() {
       }
 
       logTelemetry('RAG', 'Transmitting document context to python backend...');
+      const token = localStorage.getItem('token');
       const response = await fetch('http://localhost:8000/api/parse-resume', {
         method: 'POST',
+        headers: token ? { 'Authorization': `Bearer ${token}` } : {},
         body: formData,
       });
 
@@ -329,9 +345,13 @@ export default function AeroAssessSimulator() {
 
       try {
         if (sessionId) {
+          const token = localStorage.getItem('token');
           const response = await fetch(`http://localhost:8000/api/session/${sessionId}/answer`, {
             method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
+            headers: { 
+              'Content-Type': 'application/json',
+              ...(token ? { 'Authorization': `Bearer ${token}` } : {})
+            },
             body: JSON.stringify({
               round: activeQuestion.type,
               question: activeQuestion.question,
@@ -388,9 +408,13 @@ export default function AeroAssessSimulator() {
         if (sessionId) {
           // Save the final answer incrementally first
           try {
+            const token = localStorage.getItem('token');
             await fetch(`http://localhost:8000/api/session/${sessionId}/answer`, {
               method: 'POST',
-              headers: { 'Content-Type': 'application/json' },
+              headers: { 
+                'Content-Type': 'application/json',
+                ...(token ? { 'Authorization': `Bearer ${token}` } : {})
+              },
               body: JSON.stringify({
                 round: activeQuestion.type,
                 question: activeQuestion.question,
@@ -403,14 +427,20 @@ export default function AeroAssessSimulator() {
           }
 
           // Evaluate via new session endpoint
+          const token = localStorage.getItem('token');
           response = await fetch(`http://localhost:8000/api/session/${sessionId}/evaluate`, {
             method: 'POST',
+            headers: token ? { 'Authorization': `Bearer ${token}` } : {},
           });
         } else {
           // Legacy fallback
+          const token = localStorage.getItem('token');
           response = await fetch('http://localhost:8000/api/evaluate', {
             method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
+            headers: { 
+              'Content-Type': 'application/json',
+              ...(token ? { 'Authorization': `Bearer ${token}` } : {})
+            },
             body: JSON.stringify({
               track: selectedPreset,
               responses: nextResponses
@@ -464,9 +494,13 @@ export default function AeroAssessSimulator() {
     setIsRunningCode(true);
 
     try {
+      const token = localStorage.getItem('token');
       const response = await fetch('http://localhost:8000/api/run-code', {
         method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
+        headers: { 
+          'Content-Type': 'application/json',
+          ...(token ? { 'Authorization': `Bearer ${token}` } : {})
+        },
         body: JSON.stringify({
           language: activeLanguage,
           code: ideCode,
@@ -518,6 +552,16 @@ export default function AeroAssessSimulator() {
     }
   };
 
+  if (!isAuthenticated) {
+    return (
+      <div style={{ display: 'grid', placeContent: 'center', height: '100vh', background: 'var(--bg-primary)' }}>
+        <div className="scanner-box" style={{ width: '80px', height: '80px', border: '2px solid var(--accent-cyan)', borderRadius: '16px', position: 'relative', overflow: 'hidden', boxShadow: 'var(--shadow-neon-cyan)' }}>
+          <div style={{ position: 'absolute', top: 0, left: 0, width: '100%', height: '4px', background: 'var(--accent-cyan)', boxShadow: '0 0 8px var(--accent-cyan)', animation: 'scan 2s linear infinite' }} />
+        </div>
+      </div>
+    );
+  }
+
   return (
     <div id="app-container">
 
@@ -557,6 +601,18 @@ export default function AeroAssessSimulator() {
             onClick={() => handleSwitchSection('report')}
           >
             Performance Report
+          </button>
+          <button
+            id="nav-btn-logout"
+            className="nav-item btn-danger btn-pill"
+            style={{ marginLeft: '1.5rem', padding: '0.35rem 1rem', fontSize: '0.85rem' }}
+            onClick={() => {
+              localStorage.removeItem('token');
+              setIsAuthenticated(false);
+              router.push('/login');
+            }}
+          >
+            Logout
           </button>
         </nav>
       </header>

@@ -3,7 +3,7 @@ import tempfile
 import subprocess
 import json
 from typing import List, Dict, Any, Optional
-from fastapi import FastAPI, UploadFile, File, Form, HTTPException
+from fastapi import FastAPI, UploadFile, File, Form, HTTPException, Depends
 from fastapi.middleware.cors import CORSMiddleware
 from dotenv import load_dotenv
 from pypdf import PdfReader
@@ -27,6 +27,8 @@ from backend.services.llm import GeminiClient, LLMError
 from backend.services.session import InterviewSession
 from backend.services.mongo_session import MongoSessionStore
 from backend.agents.interview import InterviewAgent
+from backend.auth.dependencies import get_current_user
+from backend.auth.auth_routes import router as auth_router
 
 # New RAG services
 from backend.services.embedding_service import SentenceTransformerEmbeddingService
@@ -48,6 +50,9 @@ app.add_middleware(
     allow_methods=["*"],
     allow_headers=["*"],
 )
+
+# Include Authentication Routes
+app.include_router(auth_router)
 
 # Initialize Services
 gemini_client = GeminiClient()
@@ -80,7 +85,7 @@ def health_check():
     }
 
 @app.post("/api/parse-resume")
-async def parse_resume(file: Optional[UploadFile] = File(None), track: str = Form(...)):
+async def parse_resume(file: Optional[UploadFile] = File(None), track: str = Form(...), current_user: dict = Depends(get_current_user)):
     """
     Parses resume (optional) and generates technical questions via Gemini.
     Registers a new candidate session.
@@ -168,7 +173,7 @@ async def parse_resume(file: Optional[UploadFile] = File(None), track: str = For
 # SESSION MANAGEMENT ENDPOINTS
 # ==========================================
 @app.get("/api/session/{session_id}", response_model=SessionResponse)
-def get_session(session_id: str):
+def get_session(session_id: str, current_user: dict = Depends(get_current_user)):
     """Retrieves current state metadata for the given interview session."""
     session = session_store.get(session_id)
     if not session:
@@ -183,7 +188,7 @@ def get_session(session_id: str):
     )
 
 @app.post("/api/session/{session_id}/answer")
-def save_session_answer(session_id: str, req: SessionAnswerRequest):
+def save_session_answer(session_id: str, req: SessionAnswerRequest, current_user: dict = Depends(get_current_user)):
     """Saves candidate round response incrementally into the session and generates next follow-up question."""
     session = session_store.get(session_id)
     if not session:
@@ -273,7 +278,7 @@ def save_session_answer(session_id: str, req: SessionAnswerRequest):
     }
 
 @app.post("/api/session/{session_id}/evaluate", response_model=EvaluateResponseSchema)
-def evaluate_session(session_id: str):
+def evaluate_session(session_id: str, current_user: dict = Depends(get_current_user)):
     """Evaluates stored session transcript and generates the Gemini evaluation report."""
     session = session_store.get(session_id)
     if not session:
@@ -385,7 +390,7 @@ def delete_resume_embeddings(resume_id: str):
 # LOCAL COMPILER CODE RUNNER ENDPOINT
 # ==========================================
 @app.post("/api/run-code", response_model=CodeRunResponse)
-def run_code(req: CodeRunRequest):
+def run_code(req: CodeRunRequest, current_user: dict = Depends(get_current_user)):
     language = req.language.lower()
     code = req.code
     test_cases = req.testCases

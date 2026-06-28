@@ -15,5 +15,6 @@ client = MongoClient(MONGO_URI)
 db = client["aeroassess"]
 
 sessions_collection = db["sessions"]
+users_collection = db["users"]
 
-print("MongoDB Connected")
+print("MongoDB Connected")

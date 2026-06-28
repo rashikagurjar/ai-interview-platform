@@ -79,3 +79,26 @@ class SessionResponse(BaseModel):
     profile: Optional[ProfileTemplateSchema] = None
     answers_count: int
     is_completed: bool
+
+
+# ==========================================
+# AUTHENTICATION SCHEMAS
+# ==========================================
+class SignupRequest(BaseModel):
+    name: str = Field(..., description="User's full name")
+    email: str = Field(..., description="User's unique email address")
+    password: str = Field(..., description="User's password (min 6 characters)", min_length=6)
+
+class LoginRequest(BaseModel):
+    email: str = Field(..., description="User's email address")
+    password: str = Field(..., description="User's password")
+
+class TokenResponse(BaseModel):
+    access_token: str = Field(..., description="JWT access token")
+    token_type: str = Field("bearer", description="Token type, e.g. bearer")
+
+class UserResponse(BaseModel):
+    id: str = Field(..., description="Stringified MongoDB ObjectId of the user")
+    name: str = Field(..., description="User's full name")
+    email: str = Field(..., description="User's email address")
+
